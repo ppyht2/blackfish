@@ -7,15 +7,15 @@ a2m, m2a = generate_action_dict()
 class MctsNode():
     # TODO: add docs
 
-    def __init__(self, a, p, parent, root_state=None):
+    def __init__(self, a, p, parent, root_board=None):
         # root node has no parent
         self.parent = parent
         self.a = a
         if parent is None:
-            self.state = root_state.copy()
+            self.board = root_board.copy()
         else:
-            self.state = parent.state.copy()
-            self.state.push_uci(self.a)
+            self.board = parent.board.copy()
+            self.board.push_uci(self.a)
 
         self.children = dict()
 
@@ -41,6 +41,8 @@ class MctsNode():
     def expand(self, legal_moves, priors):
         for a, p in zip(legal_moves, priors):
             self.children[a] = MctsNode(a, p, parent=self)
+        # board is no longer needed
+        self.board = None
 
     def evaluate(self, v):
         self.n += 1
@@ -59,7 +61,7 @@ class MctsNode():
         return text
 
 
-def mcts_search(root_node, value_fn, policy_fn, n_sim=1200):
+def mcts_search(root_node, eval_fn, n_sim=800):
     # TODO: add docs
     # TODO: added debug and logs
 
@@ -75,17 +77,15 @@ def mcts_search(root_node, value_fn, policy_fn, n_sim=1200):
             current_node = current_node.children[a]
 
         # expand, evaluate, and backup
-        legal_moves = [m.uci() for m in current_node.state.legal_moves]
-        all_priors = policy_fn(np.expand_dims(current_node.state.state, axis=0))
+        legal_moves = [m.uci() for m in current_node.board.legal_moves]
+        value, all_priors = eval_fn([current_node.board.state])
         all_priors = np.squeeze(all_priors)
-        legal_actions = [m2a[l] for l in legal_moves]
+        legal_actions = [m2a[m] for m in legal_moves]
         legal_priors = [all_priors[actions] for actions in legal_actions]
         current_node.expand(legal_moves, legal_priors)
-        v = value_fn([current_node.state.state])
-        current_node.evaluate(v)
+        current_node.evaluate(value)
 
     max_depth = max(depth, max_depth)
-    print('Max Depth', max_depth)
 
     # caluclate improved policy
     policy = []
@@ -94,7 +94,7 @@ def mcts_search(root_node, value_fn, policy_fn, n_sim=1200):
 
     # sort it by probability
     policy.sort(key=lambda x: x[1], reverse=True)
-    return policy
+    return policy, max_depth
 
 
 # TODO: Added unit tests
