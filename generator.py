@@ -26,20 +26,7 @@ if __name__ == "__main__":
     while not board.is_game_over() or board.can_calim_draw():
         tic = time.time()
         rt = MctsNode(a=None, p=None, parent=None, root_board=board)
-        mcts_pocliy = mcts_search(rt, model)
-        # addd noise
-        print(mcts_pocliy)
-        toc = time.time() - tic
-        print('Search Time:', toc)
-        break
-
-    # Compare
-    position = START_POS.format(random.choice(COLOUR))
-    board = MyBoard(position)
-    while not board.is_game_over() or board.can_calim_draw():
-        tic = time.time()
-        rt = MctsNode(a=None, p=None, parent=None, root_board=board)
-        mcts_pocliy = mcts_search(rt, model)
+        mcts_pocliy = mcts_search(rt, model.evaluate)
         # addd noise
         print(mcts_pocliy)
         toc = time.time() - tic

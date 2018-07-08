@@ -65,3 +65,24 @@ class MyBoard(chess.Board):
         update_state = np.stack(board_state + meta_state, axis=-1)
         # TODO: HARD CODED
         self.state[:, :, -19:] = update_state
+
+
+if __name__ == "__main__":
+
+    n = 800
+    print('Measure performance with {} state updates. . . '.format(n))
+    import time
+    import random
+
+    tic = time.time()
+    i = 0
+    while i < n:
+        board = MyBoard()
+        while not board.is_game_over() or board.can_claim_draw():
+            legal_moves = list(board.legal_moves)
+            action = random.choice(legal_moves)
+            board.act(action.uci())
+            _ = board.state
+            i += 1
+    toc = time.time() - tic
+    print(toc, i)

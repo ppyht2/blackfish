@@ -44,13 +44,13 @@ class MctsNode():
         # board is no longer needed
         self.board = None
 
-    def evaluate(self, v):
+    def backup(self, v):
         self.n += 1
         self.w += v
         self.q = self.w / self.n
         # backup
         if self.parent is not None:
-            self.parent.evaluate(-v)
+            self.parent.backup(-v)
 
     def __getitem__(self, arg):
         return self.children[arg]
@@ -59,6 +59,10 @@ class MctsNode():
         text = "A: {} N: {} W: {:.2f} Q: {:.2f} P: {:.2f}".format(
             self.a, self.n, self.w, self.q, self.p)
         return text
+
+
+def create_root_node(board):
+    return MctsNode(a=None, p=None, parent=None, root_board=board)
 
 
 def mcts_search(root_node, eval_fn, n_sim=800):
@@ -83,7 +87,7 @@ def mcts_search(root_node, eval_fn, n_sim=800):
         legal_actions = [m2a[m] for m in legal_moves]
         legal_priors = [all_priors[actions] for actions in legal_actions]
         current_node.expand(legal_moves, legal_priors)
-        current_node.evaluate(value)
+        current_node.backup(value)
 
     max_depth = max(depth, max_depth)
 
@@ -98,3 +102,15 @@ def mcts_search(root_node, eval_fn, n_sim=800):
 
 
 # TODO: Added unit tests
+
+if __name__ == "__main__":
+    from dummy import dummy_net
+    from chessHelper import MyBoard
+    import time
+    board = MyBoard()
+    rt = create_root_node(board)
+
+    tic = time.time()
+    _, _ = mcts_search(rt, dummy_net)
+    toc = time.time() - tic
+    print(toc)
