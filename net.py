@@ -1,6 +1,7 @@
-from constants import BOARD_SIZE, N_ACTIONS
+from constants import BOARD_SIZE, N_ACTIONS, N_FEATURE
 import tensorflow as tf
 import numpy as np
+import joblib
 
 
 N_PLANES = 13
@@ -9,11 +10,12 @@ DEFAULT_N_FILTER = 256
 N_POLICY_FILTER = 2
 N_VALUE_FILTER = 1
 
+MODEL_NAME = 'model.params'
+
 
 class Model():
 
-    def __init__(self, n_plane, n_residual):
-        self.n_plane = n_plane
+    def __init__(self,  n_residual):
         self.n_residual = n_residual
 
         self.build_graph()
@@ -23,7 +25,7 @@ class Model():
             tf.reset_default_graph()
 
         self.state = tf.placeholder(tf.float32,
-                                    [None, BOARD_SIZE, BOARD_SIZE, self.n_plane])
+                                    [None, BOARD_SIZE, BOARD_SIZE, N_FEATURE])
         self.train_ind = tf.placeholder(tf.bool, [])
 
         h = convolution_block(self.state, self.train_ind)
@@ -40,9 +42,22 @@ class Model():
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
 
+        self.params = tf.trainable_variables()
+
     def evaluate(self, inputs):
         return self.sess.run([self.value, self.policy],
                              feed_dict={self.state: inputs, self.train_ind: False})
+
+    def save(self):
+        ps = self.sess.run(self.params)
+        joblib.dump(ps, MODEL_NAME)
+
+    def load(self):
+        ps = joblib.load(MODEL_NAME)
+        restore_ops = []
+        for t, v in zip(self.params, ps):
+            restore_ops.append(t.assign(v))
+        self.sess.run(restore_ops)
 
 
 def convolution_block(inputs, train_ind):
