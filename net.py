@@ -3,8 +3,6 @@ import tensorflow as tf
 import numpy as np
 import joblib
 
-
-N_PLANES = 13
 DEFAULT_N_FILTER = 256
 
 N_POLICY_FILTER = 2
@@ -33,9 +31,9 @@ class Model():
         for i in range(self.n_residual):
             h = residual_block(h, self.train_ind)
 
-            logits = policy_head(h, self.train_ind)
-            self.policy = tf.nn.softmax(logits)
-            self.value = value_head(h, self.train_ind)
+        logits = policy_head(h, self.train_ind)
+        self.policy = tf.nn.softmax(logits)
+        self.value = value_head(h, self.train_ind)
 
         # Training
 
@@ -46,6 +44,14 @@ class Model():
 
     def evaluate(self, inputs):
         return self.sess.run([self.value, self.policy],
+                             feed_dict={self.state: inputs, self.train_ind: False})
+
+    def evaluate_value(self, inputs):
+        return self.sess.run(self.value,
+                             feed_dict={self.state: inputs, self.train_ind: False})
+
+    def evaluate_policy(self, inputs):
+        return self.sess.run(self.policy,
                              feed_dict={self.state: inputs, self.train_ind: False})
 
     def save(self):

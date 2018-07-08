@@ -1,4 +1,7 @@
 import numpy as np
+from helper import generate_action_dict
+
+a2m, m2a = generate_action_dict()
 
 
 class MctsNode():
@@ -56,7 +59,7 @@ class MctsNode():
         return text
 
 
-def mcts_search(root_node, value_fn, policy_fun, n_sim=7200):
+def mcts_search(root_node, value_fn, policy_fn, n_sim=1200):
     # TODO: add docs
     # TODO: added debug and logs
 
@@ -73,8 +76,12 @@ def mcts_search(root_node, value_fn, policy_fun, n_sim=7200):
 
         # expand, evaluate, and backup
         legal_moves = [m.uci() for m in current_node.state.legal_moves]
-        current_node.expand(legal_moves, policy_fun(legal_moves))
-        v = value_fn(current_node)
+        all_priors = policy_fn(np.expand_dims(current_node.state.state, axis=0))
+        all_priors = np.squeeze(all_priors)
+        legal_actions = [m2a[l] for l in legal_moves]
+        legal_priors = [all_priors[actions] for actions in legal_actions]
+        current_node.expand(legal_moves, legal_priors)
+        v = value_fn([current_node.state.state])
         current_node.evaluate(v)
 
     max_depth = max(depth, max_depth)
