@@ -1,6 +1,5 @@
 from constants import BOARD_SIZE, N_ACTIONS, N_FEATURE
 import tensorflow as tf
-import numpy as np
 import joblib
 
 DEFAULT_N_FILTER = 256
@@ -109,11 +108,35 @@ def value_head(inputs, train_ind):
 
 
 if __name__ == "__main__":
+
+    # Setup
+    from chessHelper import MyBoard
+    board = MyBoard()
+    state = board.state
+
+    # Smoke test
+    print('INFO: Basic build test. . . . ')
     n_plane = 13
-    model = Model(n_plane, 3)
+    model = Model(3)
     model.build_graph()
-    state = np.random.rand(1, BOARD_SIZE, BOARD_SIZE, n_plane)
-    value, policy = model.evaluate(state)
-    # For now, just test it gives output
-    print(value)
-    print(policy)
+    value, policy = model.evaluate([state])
+    print('OK')
+
+    # Single evalulation test
+    import time
+    n = 800
+    print('Single evalulation test n={}'.format(n))
+    tic = time.time()
+    for i in range(n):
+        v, p = model.evaluate([state])
+    toc = time.time() - tic
+    print(toc)
+
+    # Single evalulation test
+    b = 8
+    print('Batch evalulation test n={} b={}'.format(n, b))
+    tic = time.time()
+    for i in range(n):
+        v, p = model.evaluate([state] * b)
+    toc = time.time() - tic
+    print(toc)

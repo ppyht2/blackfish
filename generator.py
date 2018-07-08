@@ -11,8 +11,10 @@ START_POS = "r3k2r/8/8/8/8/8/8/R2QK2R {} KQkq - 0 1"
 COLOUR = ['w', 'b']
 
 if __name__ == "__main__":
-    model_name = sys.argv[1]
-    n_games = int(sys.argv[2])
+    # model_name = sys.argv[1]
+    # n_games = int(sys.argv[2])
+    model_name = 'PLACEHOLDER'
+    n_games = 1
     print('INFO: Generating {} games using {}'.format(n_games, model_name))
 
     model = Model(3)
@@ -27,7 +29,7 @@ if __name__ == "__main__":
         tic = time.time()
         rt = MctsNode(a=None, p=None, parent=None, root_board=board)
         mcts_pocliy = mcts_search(rt, model.evaluate)
-        # addd noise
+        # TODO: addd noise
         print(mcts_pocliy)
         toc = time.time() - tic
         print('Search Time:', toc)
