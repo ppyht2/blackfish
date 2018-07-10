@@ -12,6 +12,7 @@ class MctsNode():
         self.parent = parent
         self.a = a
         if parent is None:
+            # I believe this is the most expensive operation
             self.board = root_board.copy()
         else:
             self.board = parent.board.copy()
@@ -24,19 +25,18 @@ class MctsNode():
         self.w = 0
         self.p = p
         self.q = 0
+        self.n_root = 0
 
+    # native sort ~ 7 seconds
     def select(self):
-        actions = []
         scores = []
         for a, node in self.children.items():
-            actions.append(a)
             # - for value in the prespective of the current player
-            s = -node.q + node.p * np.sqrt(self.n) / (1 + node.n)
-            scores.append(s)
+            s = -node.q + node.p * self.n_root / (1 + node.n)
+            scores.append((a, s))
 
-        i = np.argmax(scores)
-        a = actions[i]
-        return a
+        best = max(scores, key=lambda x: x[1])
+        return best[0]
 
     def expand(self, legal_moves, priors):
         for a, p in zip(legal_moves, priors):
@@ -45,9 +45,12 @@ class MctsNode():
         self.board = None
 
     def backup(self, v):
+        # Increment
         self.n += 1
         self.w += v
+        # Update
         self.q = self.w / self.n
+        self.n_root = self.n**0.5
         # backup
         if self.parent is not None:
             self.parent.backup(-v)
@@ -69,7 +72,10 @@ def mcts_search(root_node, eval_fn, n_sim=800):
     # TODO: add docs
     # TODO: added debug and logs
 
+    n_select = 0
+    n_expand = 0
     max_depth = 0
+
     for n in range(n_sim):
         current_node = root_node
         depth = 0
@@ -79,6 +85,7 @@ def mcts_search(root_node, eval_fn, n_sim=800):
             a = current_node.select()
             depth += 1
             current_node = current_node.children[a]
+            n_select += 1
 
         # expand, evaluate, and backup
         legal_moves = [m.uci() for m in current_node.board.legal_moves]
@@ -87,6 +94,7 @@ def mcts_search(root_node, eval_fn, n_sim=800):
         legal_actions = [m2a[m] for m in legal_moves]
         legal_priors = [all_priors[actions] for actions in legal_actions]
         current_node.expand(legal_moves, legal_priors)
+        n_expand += len(legal_moves)
         current_node.backup(value)
 
     max_depth = max(depth, max_depth)
@@ -98,7 +106,7 @@ def mcts_search(root_node, eval_fn, n_sim=800):
 
     # sort it by probability
     policy.sort(key=lambda x: x[1], reverse=True)
-    return policy, max_depth
+    return policy, (max_depth, n_select, n_expand)
 
 
 # TODO: Added unit tests
@@ -107,10 +115,13 @@ if __name__ == "__main__":
     from dummy import dummy_net
     from chessHelper import MyBoard
     import time
+    np.random.seed(42)
+
     board = MyBoard()
     rt = create_root_node(board)
 
     tic = time.time()
-    _, _ = mcts_search(rt, dummy_net)
+    _, meta = mcts_search(rt, dummy_net)
+    print(meta)
     toc = time.time() - tic
     print(toc)

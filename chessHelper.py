@@ -82,6 +82,9 @@ if __name__ == "__main__":
             legal_moves = list(board.legal_moves)
             action = random.choice(legal_moves)
             board.act(action.uci())
+            # Average branching factor
+            for j in range(20):
+                _ = board.copy()
             _ = board.state
             i += 1
     toc = time.time() - tic

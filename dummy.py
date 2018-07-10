@@ -10,5 +10,16 @@ def dummy_decision(board):
     return random.choice(legal_moves)
 
 
+UNIFORM_POLICY = np.ones(N_ACTIONS) / N_ACTIONS
+
+
+def dummy_policy():
+    return UNIFORM_POLICY
+
+
+def dummy_value():
+    return np.random.rand() * 2 - 1
+
+
 def dummy_net(*args):
-    return np.random.rand() * 2 - 1, np.random.rand(N_ACTIONS)
+    return dummy_value(), dummy_policy()
