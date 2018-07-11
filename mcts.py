@@ -16,7 +16,7 @@ class MctsNode():
             self.board = root_board.copy()
         else:
             self.board = parent.board.copy()
-            self.board.push_uci(self.a)
+            self.board.push(self.a)
 
         self.children = dict()
 
@@ -35,8 +35,8 @@ class MctsNode():
             s = -node.q + node.p * self.n_root / (1 + node.n)
             scores.append((a, s))
 
-        best = max(scores, key=lambda x: x[1])
-        return best[0]
+        selected = max(scores, key=lambda x: x[1])
+        return selected[0]
 
     def expand(self, legal_moves, priors):
         for a, p in zip(legal_moves, priors):
@@ -86,18 +86,17 @@ def mcts_search(root_node, eval_fn, n_sim=800):
             depth += 1
             current_node = current_node.children[a]
             n_select += 1
+        max_depth = max(depth, max_depth)
 
         # expand, evaluate, and backup
-        legal_moves = [m.uci() for m in current_node.board.legal_moves]
+        legal_moves = list(current_node.board.legal_moves)
         value, all_priors = eval_fn([current_node.board.state])
         all_priors = np.squeeze(all_priors)
-        legal_actions = [m2a[m] for m in legal_moves]
+        legal_actions = [m2a[m.uci()] for m in legal_moves]
         legal_priors = [all_priors[actions] for actions in legal_actions]
         current_node.expand(legal_moves, legal_priors)
         n_expand += len(legal_moves)
         current_node.backup(value)
-
-    max_depth = max(depth, max_depth)
 
     # caluclate improved policy
     policy = []
