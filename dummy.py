@@ -1,6 +1,7 @@
 import random
 import numpy as np
 from constants import N_ACTIONS
+from helper import get_basic_position_value
 
 
 def dummy_decision(board):
@@ -23,3 +24,8 @@ def dummy_value():
 
 def dummy_net(*args):
     return dummy_value(), dummy_policy()
+
+
+def dummy_material_net(env):
+    value = get_basic_position_value(env)
+    return value, dummy_policy()
