@@ -41,9 +41,9 @@ class Model():
 
         self.params = tf.trainable_variables()
 
-    def evaluate(self, inputs):
+    def evaluate(self, states):
         return self.sess.run([self.value, self.policy],
-                             feed_dict={self.state: inputs, self.train_ind: False})
+                             feed_dict={self.state: states, self.train_ind: False})
 
     def evaluate_value(self, inputs):
         return self.sess.run(self.value,

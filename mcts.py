@@ -1,16 +1,19 @@
+from chessHelper import MyBoard
+from collections import defaultdict
+from constants import N_ACTIONS
+from helper import generate_action_dict
 import numpy as np
 import time
-from chessHelper import MyBoard
-from helper import generate_action_dict
-from constants import N_ACTIONS
-
-from collections import defaultdict
 
 
+# TODO: Tidy this up
 a2m, m2a = generate_action_dict()
 
 
 class MasterNode():
+    """ A placeholder node the root node statistics
+    """
+
     def __init__(self):
         self.parent = None
         self.child_n = defaultdict(float)
@@ -18,6 +21,14 @@ class MasterNode():
 
 
 class MctsNode():
+    """ MCTS Node class
+
+    Args:
+      f_action: edge connecting node to this parent
+      parent: the parent node
+      env: a chess environment
+    """
+
     def __init__(self, f_action, parent, env=None):
         self.parent = parent
 
@@ -27,31 +38,33 @@ class MctsNode():
         self.f_action = f_action
         self.is_expanded = False
 
+        self.is_root_node = isinstance(self.parent, MasterNode)
+
         # Root Node always copy the environment
-        if isinstance(self.parent, MasterNode):
+        if self.is_root_node:
             self.env = env.copy()
 
     def select(self):
-        # Do not select illegal actions
+        """ Select a child node
+        """
         # TODO: Cput
         Q = -self.child_w / (self.child_n + 1)
         # TODO: Optimise
         U = self.child_p * (np.sqrt(self.parent.child_n[self.f_action]) / (self.child_n + 1))
-
-        L = - 999 * self.illegal_actions
+        L = - 999 * self.illegal_actions  # Illegal actions are punished
         score = Q + U + L
         a = np.argmax(score)
         return a
 
     def prep_env(self):
         # Prep evnironment for evalulation
-        if not isinstance(self.parent, MasterNode):
+        if not self.is_root_node:
             self.env = self.parent.env.copy()
             self.env.push_uci(a2m[self.f_action])
 
     def expand(self, child_prior):
         assert not self.is_expanded
-        # Do not expand illegal node
+        # only expand legal nodes
         legal_actions = get_legal_actions(self.env)
         self.illegal_actions = np.invert(legal_actions)
         self.child = {action: MctsNode(action, self)
@@ -63,9 +76,8 @@ class MctsNode():
     def backup(self, value):
         self.parent.child_n[self.f_action] += 1
         self.parent.child_w[self.f_action] += value
-        if not isinstance(self.parent, MasterNode):
-            # In the prespective of the parent
-            self.parent.backup(-value)
+        if not self.is_root_node:
+            self.parent.backup(-value)  # backup in the perspective of the parent
 
 
 def get_legal_actions(env):
@@ -76,7 +88,7 @@ def get_legal_actions(env):
 
 
 # Old search
-def mcts_search(root_node, eval_fn, n_sim=800):
+def mcts_search_classic(root_node, eval_fn, n_sim=800):
     n_select = 0
     max_depth = 0
 
@@ -106,6 +118,13 @@ def mcts_search(root_node, eval_fn, n_sim=800):
     return (max_depth, n_select)
 
 
+# Helper function
+def mcts_setup(env):
+    master_node = MasterNode()
+    root_node = MctsNode(f_action=None, parent=master_node, env=env)
+    return root_node, master_node
+
+
 if __name__ == "__main__":
 
     from dummy import dummy_material_net
@@ -114,7 +133,7 @@ if __name__ == "__main__":
     master_node = MasterNode()
     root_node = MctsNode(f_action=None, parent=master_node, env=board)
     tic = time.perf_counter()
-    meta = mcts_search(root_node, dummy_material_net, 800)
+    meta = mcts_search_classic(root_node, dummy_material_net, 800)
     print(meta)
     toc = time.perf_counter() - tic
     print(toc)
