@@ -1,93 +1,149 @@
+from chessHelper import MyBoard
+from collections import defaultdict
+from constants import N_ACTIONS
+from helper import generate_action_dict
 import numpy as np
+import time
+
+
+# TODO: Tidy this up
+a2m, m2a = generate_action_dict()
+
+
+class MasterNode():
+    """ A placeholder node the root node statistics
+    """
+
+    def __init__(self):
+        self.parent = None
+        self.child_n = defaultdict(float)
+        self.child_w = defaultdict(float)
 
 
 class MctsNode():
-    # TODO: add docs
+    """ MCTS Node class
 
-    def __init__(self, a, p, parent, root_state=None):
-        # root node has no parent
+    Args:
+      f_action: edge connecting node to this parent
+      parent: the parent node
+      env: a chess environment
+    """
+
+    def __init__(self, f_action, parent, env=None):
         self.parent = parent
-        self.a = a
-        if parent is None:
-            self.state = root_state.copy()
-        else:
-            self.state = parent.state.copy()
-            self.state.push_uci(self.a)
 
-        self.children = dict()
+        self.child_n = np.zeros(N_ACTIONS, dtype=np.int)
+        self.child_w = np.zeros(N_ACTIONS, dtype=np.float32)
 
-        # node statistics
-        self.n = 0
-        self.w = 0
-        self.p = p
-        self.q = 0
+        self.f_action = f_action
+        self.is_expanded = False
+
+        self.is_root_node = isinstance(self.parent, MasterNode)
+
+        # Root Node always copy the environment
+        if self.is_root_node:
+            self.env = env.copy()
 
     def select(self):
-        actions = []
-        scores = []
-        for a, node in self.children.items():
-            actions.append(a)
-            # - for value in the prespective of the current player
-            s = -node.q + node.p * np.sqrt(self.n) / (1 + node.n)
-            scores.append(s)
-
-        i = np.argmax(scores)
-        a = actions[i]
+        """ Select a child node
+        """
+        # TODO: Cput
+        Q = -self.child_w / (self.child_n + 1)
+        # TODO: Optimise
+        U = self.child_p * (np.sqrt(self.parent.child_n[self.f_action]) / (self.child_n + 1))
+        L = - 999 * self.illegal_actions  # Illegal actions are punished
+        score = Q + U + L
+        a = np.argmax(score)
         return a
 
-    def expand(self, legal_moves, priors):
-        for a, p in zip(legal_moves, priors):
-            self.children[a] = MctsNode(a, p, parent=self)
+    def prep_env(self):
+        # Prep evnironment for evalulation
+        if not self.is_root_node:
+            self.env = self.parent.env.copy()
+            self.env.push_uci(a2m[self.f_action])
 
-    def evaluate(self, v):
-        self.n += 1
-        self.w += v
-        self.q = self.w / self.n
-        # backup
-        if self.parent is not None:
-            self.parent.evaluate(-v)
+    def expand(self, child_prior):
+        assert not self.is_expanded
+        # only expand legal nodes
+        legal_actions = get_legal_actions(self.env)
+        self.illegal_actions = np.invert(legal_actions)
+        self.child = {action: MctsNode(action, self)
+                      for action, islegal in enumerate(legal_actions) if islegal}
 
-    def __getitem__(self, arg):
-        return self.children[arg]
+        self.child_p = child_prior
+        self.is_expanded = True
 
-    def __repr__(self):
-        text = "A: {} N: {} W: {:.2f} Q: {:.2f} P: {:.2f}".format(
-            self.a, self.n, self.w, self.q, self.p)
-        return text
+    def backup(self, value):
+        self.parent.child_n[self.f_action] += 1
+        self.parent.child_w[self.f_action] += value
+        if not self.is_root_node:
+            self.parent.backup(-value)  # backup in the perspective of the parent
 
 
-def mcts_search(root_node, value_fn, policy_fun, n_sim=7200):
-    # TODO: add docs
-    # TODO: added debug and logs
+def get_legal_actions(env):
+    legal_actions = [m2a[m.uci()] for m in env.legal_moves]
+    action_array = np.zeros(N_ACTIONS, dtype=np.bool)
+    action_array[legal_actions] = True
+    return action_array
 
+
+# Old search
+def mcts_search_classic(root_node, eval_fn, n_sim=800):
+    n_select = 0
     max_depth = 0
+
     for n in range(n_sim):
+        # print('Search:', n)
         current_node = root_node
         depth = 0
-
         # select
-        while len(current_node.children) != 0:
+        while current_node.is_expanded:
+            # print('Select')
             a = current_node.select()
             depth += 1
-            current_node = current_node.children[a]
+            current_node = current_node.child[a]
+            n_select += 1
+        max_depth = max(depth, max_depth)
 
         # expand, evaluate, and backup
-        legal_moves = [m.uci() for m in current_node.state.legal_moves]
-        current_node.expand(legal_moves, policy_fun(legal_moves))
-        v = value_fn(current_node)
-        current_node.evaluate(v)
+        # print('_Prep')
+        current_node.prep_env()
+        value, priors = eval_fn(current_node.env)
+        # print('Expand\n', current_node.env)
+        current_node.expand(priors)
+        # print('Backup:', value)
+        current_node.backup(value)
 
-    max_depth = max(depth, max_depth)
-    print('Max Depth', max_depth)
-
-    # caluclate improved policy
-    policy = []
-    for a, node in root_node.children.items():
-        policy.append((a, node.n / root_node.n))
-
-    # sort it by probability
-    policy.sort(key=lambda x: x[1], reverse=True)
-    return policy
+    # TODO: caluclate improved policy
+    return (max_depth, n_select)
 
 
-# TODO: Added unit tests
+# Helper function
+def mcts_setup(env):
+    master_node = MasterNode()
+    root_node = MctsNode(f_action=None, parent=master_node, env=env)
+    return root_node, master_node
+
+
+if __name__ == "__main__":
+
+    from dummy import dummy_material_net
+    # board = MyBoard("r1b1r2k/pp2qp2/5n2/4n1p1/2P5/2Q1PNB1/P1B3PP/4RRK1 b - - 0 24")
+    board = MyBoard()
+    master_node = MasterNode()
+    root_node = MctsNode(f_action=None, parent=master_node, env=board)
+    tic = time.perf_counter()
+    meta = mcts_search_classic(root_node, dummy_material_net, 800)
+    print(meta)
+    toc = time.perf_counter() - tic
+    print(toc)
+
+    print('Total visits based on rt', root_node.child_n.sum())
+    print('Master:', master_node.child_n[None])
+    pi = root_node.child_n / master_node.child_n[None]
+    p = np.argsort(pi)[::-1]
+    for i in range(10):
+        action = p[i]
+        prob = pi[action]
+        move = a2m[action]
+        print(i, move, prob)

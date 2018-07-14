@@ -1,19 +1,18 @@
-from constants import BOARD_SIZE, N_ACTIONS
+from constants import BOARD_SIZE, N_ACTIONS, N_FEATURE
 import tensorflow as tf
-import numpy as np
+import joblib
 
-
-N_PLANES = 13
 DEFAULT_N_FILTER = 256
 
 N_POLICY_FILTER = 2
 N_VALUE_FILTER = 1
 
+MODEL_NAME = 'model.params'
+
 
 class Model():
 
-    def __init__(self, n_plane, n_residual):
-        self.n_plane = n_plane
+    def __init__(self,  n_residual):
         self.n_residual = n_residual
 
         self.build_graph()
@@ -23,7 +22,7 @@ class Model():
             tf.reset_default_graph()
 
         self.state = tf.placeholder(tf.float32,
-                                    [None, BOARD_SIZE, BOARD_SIZE, self.n_plane])
+                                    [None, BOARD_SIZE, BOARD_SIZE, N_FEATURE])
         self.train_ind = tf.placeholder(tf.bool, [])
 
         h = convolution_block(self.state, self.train_ind)
@@ -31,18 +30,39 @@ class Model():
         for i in range(self.n_residual):
             h = residual_block(h, self.train_ind)
 
-            logits = policy_head(h, self.train_ind)
-            self.policy = tf.nn.softmax(logits)
-            self.value = value_head(h, self.train_ind)
+        logits = policy_head(h, self.train_ind)
+        self.policy = tf.nn.softmax(logits)
+        self.value = value_head(h, self.train_ind)
 
         # Training
 
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
 
-    def evaluate(self, inputs):
+        self.params = tf.trainable_variables()
+
+    def evaluate(self, states):
         return self.sess.run([self.value, self.policy],
+                             feed_dict={self.state: states, self.train_ind: False})
+
+    def evaluate_value(self, inputs):
+        return self.sess.run(self.value,
                              feed_dict={self.state: inputs, self.train_ind: False})
+
+    def evaluate_policy(self, inputs):
+        return self.sess.run(self.policy,
+                             feed_dict={self.state: inputs, self.train_ind: False})
+
+    def save(self):
+        ps = self.sess.run(self.params)
+        joblib.dump(ps, MODEL_NAME)
+
+    def load(self):
+        ps = joblib.load(MODEL_NAME)
+        restore_ops = []
+        for t, v in zip(self.params, ps):
+            restore_ops.append(t.assign(v))
+        self.sess.run(restore_ops)
 
 
 def convolution_block(inputs, train_ind):
@@ -88,11 +108,35 @@ def value_head(inputs, train_ind):
 
 
 if __name__ == "__main__":
+
+    # Setup
+    from chessHelper import MyBoard
+    board = MyBoard()
+    state = board.state
+
+    # Smoke test
+    print('INFO: Basic build test. . . . ')
     n_plane = 13
-    model = Model(n_plane, 3)
+    model = Model(3)
     model.build_graph()
-    state = np.random.rand(1, BOARD_SIZE, BOARD_SIZE, n_plane)
-    value, policy = model.evaluate(state)
-    # For now, just test it gives output
-    print(value)
-    print(policy)
+    value, policy = model.evaluate([state])
+    print('OK')
+
+    # Single evalulation test
+    import time
+    n = 800
+    print('Single evalulation test n={}'.format(n))
+    tic = time.time()
+    for i in range(n):
+        v, p = model.evaluate([state])
+    toc = time.time() - tic
+    print(toc)
+
+    # Single evalulation test
+    b = 8
+    print('Batch evalulation test n={} b={}'.format(n, b))
+    tic = time.time()
+    for i in range(n):
+        v, p = model.evaluate([state] * b)
+    toc = time.time() - tic
+    print(toc)

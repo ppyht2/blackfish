@@ -1,39 +1,41 @@
 import chess
 import numpy as np
-from helper import get_basic_position_value
-from mcts import MctsNode, mcts
+from helper import get_basic_position_value, generate_action_dict
+from mcts import MctsNode, mcts_search, MasterNode
+from dummy import dummy_material_net
+import time
+
+
+a2m, m2a = generate_action_dict()
 
 board = chess.Board()
 
-
-def value_fn(node):
-    return get_basic_position_value(node.state)
-
-
-def policy_fn(legal_moves):
-    n = len(legal_moves)
-    policy = np.ones(n)
-    policy = policy * 1 / n
-    return policy
-
-
 while not board.is_game_over():
+    print('------------------------------')
     player_move = input('Player Move: ')
     board.push_uci(player_move)
+    print('------------------------------')
+    print(board)
+    print('------------------------------')
 
-    root_node = MctsNode(a=None, p=None, parent=None, root_state=board)
-    print('root node value:', value_fn(root_node))
+    master = MasterNode()
+    root = MctsNode(f_action=None, parent=master, env=board)
 
-    mcts(root_node, value_fn, policy_fn, 3200)
+    tic = time.perf_counter()
+    stat = mcts_search(root, dummy_material_net, 3200)
+    toc = time.perf_counter() - tic
+    print('MCTS Stat:{} {:.2f}s'.format(stat, toc))
 
-    max_score = 0
-    best_action = None
-    for a, c in root_node.children.items():
-        score = c.n / root_node.n
-        if score > max_score:
-            max_score = score
-            best_action = a
+    n = root.child_n
+    q = root.child_w / (root.child_n + 1)
+    p = root.child_p
 
-    print('Enemy Move: {} @ {:.2f}%'.format(best_action, max_score * 100))
-    board.push_uci(best_action)
+    prob = root.child_n / master.child_n[None]
+    pi = np.argsort(prob)[::-1]
+    a = pi[0]
+    move = a2m[a]
+    print('------------------------------')
+    print('Enemy Move: {} @ {:.2f}% N={} Q={}'.format(move, prob[a] * 100, n[a], q[a]))
+    board.push_uci(move)
+    print('------------------------------')
     print(board)

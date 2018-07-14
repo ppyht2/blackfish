@@ -1,58 +1,91 @@
 import numpy as np
+import chess
 from constants import BOARD_SIZE, DEFAULT_PIECE_ORDER, N_FEATURE, N_BOARD_FEATURE
 
 
-# TODO: default feature planes are typed np.int, perhaps bool will improve efficency
 def get_binary_plane(boolean):
-    return np.ones([BOARD_SIZE, BOARD_SIZE], dtype=np.int) * boolean
+    return np.ones([BOARD_SIZE, BOARD_SIZE], dtype=np.bool) * boolean
 
 
 def get_piece_plane(idx):
-    plane = np.zeros(BOARD_SIZE * BOARD_SIZE, dtype=np.int)
-    plane[idx] = 1
+    plane = np.zeros(BOARD_SIZE * BOARD_SIZE, dtype=np.bool)
+    plane[idx] = True
     plane = plane.reshape((BOARD_SIZE, BOARD_SIZE))
     return plane
 
 
 def init_state():
-    return np.zeros((BOARD_SIZE, BOARD_SIZE, N_FEATURE), dtype=np.int), dict()
+    return np.zeros((BOARD_SIZE, BOARD_SIZE, N_FEATURE), dtype=np.bool), dict()
 
 
-def get_new_planes(board, prev_state, rep_counter):
-    player = board.turn
-    enemy = not player
+class MyBoard(chess.Board):
+    def __init__(self, start=chess.STARTING_FEN):
+        chess.Board.__init__(self, start)
+        self.state, self.rep_counter = init_state()
+        self._update_state()
 
-    board_state = []
-    for colour in (player, enemy):
-        for piece in DEFAULT_PIECE_ORDER:
-            piece_idx = list(board.pieces(piece, colour))
-            piece_plane = get_piece_plane(piece_idx)
-            board_state.append(piece_plane)
+    def act(self, move):
+        self.push_uci(move)
+        self._update_state()
 
-    # Increment state counter
-    rep_counter = dict()
-    rep_counter[str(board)] = rep_counter.get(str(board), 0) + 1
-    rep = rep_counter[str(board)]
+    def _update_state(self):
 
-    # Repetitions
-    for i in range(2):
-        rep_plane = get_binary_plane(rep > i)
-        board_state.append(rep_plane)
+        player = self.turn
+        enemy = not player
 
-    # transcant planes
-    colour_plane = get_binary_plane(player)
-    p1_king_castling = get_binary_plane(board.has_kingside_castling_rights(player))
-    p1_queen_castling = get_binary_plane(board.has_queenside_castling_rights(player))
-    p2_king_castling = get_binary_plane(board.has_kingside_castling_rights(enemy))
-    p2_queen_castling = get_binary_plane(board.has_queenside_castling_rights(enemy))
+        # Part 1: Piece features
+        board_state = []
+        for colour in (player, enemy):
+            for piece in DEFAULT_PIECE_ORDER:
+                piece_idx = list(self.pieces(piece, colour))
+                piece_plane = get_piece_plane(piece_idx)
+                board_state.append(piece_plane)
 
-    meta_state = [colour_plane, p1_king_castling,
-                  p1_queen_castling, p2_king_castling, p2_queen_castling]
+        # Increment state counter
+        self.rep_counter[str(self)] = self.rep_counter.get(str(self), 0) + 1
+        rep = self.rep_counter[str(self)]
 
-    # roll previouse states
-    current_state = np.roll(prev_state, -N_BOARD_FEATURE, axis=2)
-    update_state = np.stack(board_state + meta_state, axis=-1)
-    # TODO: HARD CODED
-    current_state[:, :, -19:] = update_state
+        # # Part 2: State repretions
+        for i in range(2):
+            rep_plane = get_binary_plane(rep > i)
+            board_state.append(rep_plane)
 
-    return current_state, rep_counter
+        # Part 3: Meta features
+        colour_plane = get_binary_plane(player)
+        p1_king_castling = get_binary_plane(self.has_kingside_castling_rights(player))
+        p1_queen_castling = get_binary_plane(self.has_queenside_castling_rights(player))
+        p2_king_castling = get_binary_plane(self.has_kingside_castling_rights(enemy))
+        p2_queen_castling = get_binary_plane(self.has_queenside_castling_rights(enemy))
+
+        meta_state = [colour_plane, p1_king_castling,
+                      p1_queen_castling, p2_king_castling, p2_queen_castling]
+
+        # roll previouse state and update
+        self.state = np.roll(self.state, -N_BOARD_FEATURE, axis=2)
+        update_state = np.stack(board_state + meta_state, axis=-1)
+        # TODO: HARD CODED
+        self.state[:, :, -19:] = update_state
+
+
+if __name__ == "__main__":
+
+    n = 800
+    print('Measure performance with {} state updates. . . '.format(n))
+    import time
+    import random
+
+    tic = time.time()
+    i = 0
+    while i < n:
+        board = MyBoard()
+        while not board.is_game_over() or board.can_claim_draw():
+            legal_moves = list(board.legal_moves)
+            action = random.choice(legal_moves)
+            board.act(action.uci())
+            # Average branching factor
+            for j in range(20):
+                _ = board.copy()
+            _ = board.state
+            i += 1
+    toc = time.time() - tic
+    print(toc, i)
