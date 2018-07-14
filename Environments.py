@@ -18,14 +18,17 @@ def init_state():
     return np.zeros((BOARD_SIZE, BOARD_SIZE, N_FEATURE), dtype=np.bool), dict()
 
 
-class MyBoard(chess.Board):
+class ChessEnvironment(chess.Board):
     def __init__(self, start=chess.STARTING_FEN):
         chess.Board.__init__(self, start)
         self.state, self.rep_counter = init_state()
         self._update_state()
 
-    def act(self, move):
-        self.push_uci(move)
+    def act(self, move, string_move=True):
+        if string_move:
+            self.push_uci(move)
+        else:
+            self.push(move)
         self._update_state()
 
     def _update_state(self):
@@ -70,22 +73,22 @@ class MyBoard(chess.Board):
 if __name__ == "__main__":
 
     n = 800
-    print('Measure performance with {} state updates. . . '.format(n))
+
     import time
     import random
 
-    tic = time.time()
+    random.seed(42)
+
+    print('Measure performance with {} state updates. . . '.format(n))
+
+    env = ChessEnvironment()
     i = 0
+    tic = time.perf_counter()
     while i < n:
-        board = MyBoard()
-        while not board.is_game_over() or board.can_claim_draw():
-            legal_moves = list(board.legal_moves)
-            action = random.choice(legal_moves)
-            board.act(action.uci())
-            # Average branching factor
-            for j in range(20):
-                _ = board.copy()
-            _ = board.state
-            i += 1
-    toc = time.time() - tic
-    print(toc, i)
+        if env.is_game_over(claim_draw=True):
+            env = ChessEnvironment()
+        m = random.choice(list(env.legal_moves))
+        env.act(m, False)
+        i += 1
+    toc = time.perf_counter() - tic
+    print(toc)

@@ -1,4 +1,4 @@
-from chessHelper import MyBoard
+from Environments import ChessEnvironment
 from collections import defaultdict
 from constants import N_ACTIONS
 from helper import generate_action_dict
@@ -60,7 +60,7 @@ class MctsNode():
         # Prep evnironment for evalulation
         if not self.is_root_node:
             self.env = self.parent.env.copy()
-            self.env.push_uci(a2m[self.f_action])
+            self.env.act(a2m[self.f_action])
 
     def expand(self, child_prior):
         assert not self.is_expanded
@@ -129,7 +129,7 @@ if __name__ == "__main__":
 
     from dummy import dummy_material_net
     # board = MyBoard("r1b1r2k/pp2qp2/5n2/4n1p1/2P5/2Q1PNB1/P1B3PP/4RRK1 b - - 0 24")
-    board = MyBoard()
+    board = ChessEnvironment()
     master_node = MasterNode()
     root_node = MctsNode(f_action=None, parent=master_node, env=board)
     tic = time.perf_counter()

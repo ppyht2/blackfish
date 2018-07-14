@@ -1,8 +1,7 @@
 import chess
 import numpy as np
-from helper import get_basic_position_value, generate_action_dict
-from mcts import MctsNode, mcts_search, MasterNode
-from dummy import dummy_material_net
+from mcts import MctsNode, mcts_search_classic, MasterNode
+from dummy import dummy_material_net, get_basic_position_value, generate_action_dict
 import time
 
 

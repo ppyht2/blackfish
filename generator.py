@@ -1,9 +1,10 @@
 import sys
-from chessHelper import MyBoard
+from Environments import ChessEnvironment
 from net import Model
 import random
 from mcts import mcts_setup, mcts_search_classic
 import time
+
 # Generate games for the network to learn
 
 # First mover has mate in 7
@@ -22,12 +23,14 @@ if __name__ == "__main__":
     model.save()
     model.load()
 
+
     def tf_eval(env):
         return model.evaluate([env.state])
 
+
     # Generate a game
     position = START_POS.format(random.choice(COLOUR))
-    board = MyBoard(position)
+    board = ChessEnvironment(position)
     while not board.is_game_over() or board.can_calim_draw():
         tic = time.time()
         root_node, master_node = mcts_setup(board)

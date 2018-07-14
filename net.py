@@ -110,8 +110,8 @@ def value_head(inputs, train_ind):
 if __name__ == "__main__":
 
     # Setup
-    from chessHelper import MyBoard
-    board = MyBoard()
+    from Environments import ChessEnvironment
+    board = ChessEnvironment()
     state = board.state
 
     # Smoke test
