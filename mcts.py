@@ -44,6 +44,7 @@ class MctsNode():
         if self.is_root_node:
             self.env = env.copy()
 
+
     def select(self):
         """ Select a child node
         """
