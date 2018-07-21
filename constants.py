@@ -2,7 +2,7 @@ import chess
 import numpy as np
 
 BOARD_SIZE = 8
-N_ACTIONS = 8 * 8 * 73
+N_ACTIONS = 4272
 
 PIECE_NAMES = {chess.PAWN: 'PAWN',
                chess.KNIGHT: 'KNIGHT',
