@@ -21,6 +21,7 @@ class MasterNode():
         self.parent = None
         self.child_n = defaultdict(float)
         self.child_w = defaultdict(float)
+        self.child_lock = defaultdict(float)
 
 
 class MctsNode():
@@ -37,6 +38,7 @@ class MctsNode():
 
         self.child_n = np.zeros(N_ACTIONS, dtype=np.int)
         self.child_w = np.zeros(N_ACTIONS, dtype=np.float32)
+        self.child_lock = np.zeros(N_ACTIONS, dtype=np.bool)
 
         self.f_action = f_action
         self.is_expanded = False
@@ -56,7 +58,8 @@ class MctsNode():
         # TODO: Optimise
         U = C_PUCT * self.child_p * (np.sqrt(self.parent.child_n[self.f_action]) / (self.child_n + 1))
         L = - 999 * self.illegal_actions  # Illegal actions are punished
-        score = Q + U + L
+        K = - 999 * self.child_lock  # child who are locked are punished
+        score = Q + U + L + K
         a = np.argmax(score)
         return a
 
@@ -69,13 +72,12 @@ class MctsNode():
     def expand(self, child_prior):
         assert not self.is_expanded
         # only expand legal nodes
-        legal_actions = get_legal_actions(self.env)
-        self.illegal_actions = np.invert(legal_actions)
-        self.child = {action: MctsNode(action, self)
-                      for action, islegal in enumerate(legal_actions) if islegal}
+        legal_actions_arr, la_list = get_legal_actions(self.env)
+        self.illegal_actions = np.invert(legal_actions_arr)
+        self.child = {a: MctsNode(a, self) for a in la_list}
 
         # mask prior by legal moves and normalise
-        self.child_p = child_prior * legal_actions
+        self.child_p = child_prior * legal_actions_arr
         self.child_p = self.child_p * (1 / self.child_p.sum())
         self.is_expanded = True
 
@@ -93,11 +95,13 @@ class MctsNode():
     def lock(self):
         self.locked = True
         # virtual loss
-        self._apply_loss(-1)
+        # self._apply_loss(-1)
+        self.parent.child_lock[self.f_action] = True
 
     def unlock(self):
         self._apply_loss(1)
         self.locked = False
+        self.parent.child_lock[self.f_action] = False
 
     @property
     def child_q(self):
@@ -112,7 +116,7 @@ def get_legal_actions(env):
     legal_actions = [m2a[m.uci()] for m in env.legal_moves]
     action_array = np.zeros(N_ACTIONS, dtype=np.bool)
     action_array[legal_actions] = True
-    return action_array
+    return action_array, legal_actions
 
 
 def lap_timer(last_tic):
@@ -220,6 +224,7 @@ def mcts_search_classic(root_node, eval_fn, n_sim=800):
         statistics['backup_time'] += time.perf_counter() - tic
 
     return statistics
+
 
 # Helper function
 def mcts_setup(env):
