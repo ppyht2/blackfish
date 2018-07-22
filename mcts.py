@@ -5,6 +5,8 @@ from dummy import generate_action_dict
 import numpy as np
 import time
 
+from threading import Thread
+
 # TODO: Tidy this up
 a2m, m2a = generate_action_dict()
 
@@ -30,7 +32,7 @@ class MctsNode():
       env: a chess environment
     """
 
-    def __init__(self, f_action, parent, env=None):
+    def __init__(self, f_action, parent, env=None, is_root_node=False):
         self.parent = parent
 
         self.child_n = np.zeros(N_ACTIONS, dtype=np.int)
@@ -39,7 +41,7 @@ class MctsNode():
         self.f_action = f_action
         self.is_expanded = False
 
-        self.is_root_node = isinstance(self.parent, MasterNode)
+        self.is_root_node = is_root_node
 
         self.locked = False
 
@@ -83,10 +85,18 @@ class MctsNode():
         if not self.is_root_node:
             self.parent.backup(-value)  # backup in the perspective of the parent
 
+    def _apply_loss(self, loss):
+        self.parent.child_n[self.f_action] += loss
+        if not self.is_root_node:
+            self.parent.backup(-loss)
+
     def lock(self):
         self.locked = True
+        # virtual loss
+        self._apply_loss(-1)
 
     def unlock(self):
+        self._apply_loss(1)
         self.locked = False
 
     @property
@@ -109,6 +119,62 @@ def lap_timer(last_tic):
     now = time.perf_counter()
     lap = now - last_tic
     return lap, now
+
+
+lock_count = 0
+
+
+class MctsThread(Thread):
+    def __init__(self, root_node, eval_fn):
+        Thread.__init__(self)
+        self.root_node = root_node
+        self.eval_fn = eval_fn
+
+    def run(self):
+        current_node = root_node
+        # 1. Select
+        while current_node.is_expanded:
+            a = current_node.select()
+            current_node = current_node.child[a]
+
+        # abandon if locked
+        if current_node.locked:
+            # print('LOCKED!')
+            global lock_count
+            lock_count += 1
+            return
+
+        # 2. Evaluate
+        current_node.lock()
+        current_node.prep_env()
+        value, priors = self.eval_fn(current_node.env)
+
+        # 3. Expand
+        current_node.expand(priors)
+
+        current_node.unlock()
+        current_node.backup(value)
+
+
+def mcts_search_new(root_node, eval_fn, n_sim=800):
+    statistics = {'select_op': 0,
+                  'max_depth': 0,
+                  'select_time': 0,
+                  'evaluate_time': 0,
+                  'expand_time': 0,
+                  'backup_time': 0
+                  }
+
+    threads = []
+    while root_node.parent.child_n[None] < n_sim:
+        t = MctsThread(root_node, eval_fn)
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join()
+
+    return statistics
 
 
 # Old search
@@ -155,11 +221,10 @@ def mcts_search_classic(root_node, eval_fn, n_sim=800):
 
     return statistics
 
-
 # Helper function
 def mcts_setup(env):
     master_node = MasterNode()
-    root_node = MctsNode(f_action=None, parent=master_node, env=env)
+    root_node = MctsNode(f_action=None, parent=master_node, env=env, is_root_node=True)
     return root_node, master_node
 
 
@@ -173,11 +238,14 @@ if __name__ == "__main__":
 
     from dummy import dummy_material_net
 
+    N_SIM = 1200
+
     board = ChessEnvironment("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1")
     root_node, master_node = mcts_setup(board)
 
     tic = time.perf_counter()
-    stats = mcts_search_classic(root_node, dummy_material_net, 1200)
+    stats = mcts_search_classic(root_node, dummy_material_net, N_SIM)
+    # stats = mcts_search_new(root_node, dummy_material_net, N_SIM)
     toc = time.perf_counter() - tic
 
     print('INFO: Search statistics')
@@ -210,3 +278,4 @@ if __name__ == "__main__":
 
         print('s', root_node._child_u[a] - root_node.child_q[a])
     # embed()
+    print('locked', lock_count)
