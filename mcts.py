@@ -10,7 +10,7 @@ from threading import Thread
 # TODO: Tidy this up
 a2m, m2a = generate_action_dict()
 
-C_PUCT = 10
+C_PUCT = 2
 
 
 class MasterNode():
