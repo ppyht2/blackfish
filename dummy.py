@@ -14,7 +14,6 @@ def dummy_decision(board):
 def dummy_policy():
     return UNIFORM_POLICY
 
-
 def dummy_value():
     return np.random.rand() * 2 - 1
 
